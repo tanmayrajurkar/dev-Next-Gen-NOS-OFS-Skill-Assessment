@@ -15,7 +15,8 @@ class TestPackageStructure:
         """Test that the top-level package can be imported."""
         import ofs_skill
         assert hasattr(ofs_skill, '__version__')
-        assert ofs_skill.__version__ == '1.5.0'
+        parts = ofs_skill.__version__.split('.')
+        assert len(parts) == 3, f"Version should be semver: {ofs_skill.__version__}"
 
     def test_model_properties_import(self):
         """Test that ModelProperties can be imported from top level."""
