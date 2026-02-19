@@ -1,17 +1,35 @@
 ENV_NAME = ofs_dps
 CONDA_RUN = conda run -n $(ENV_NAME)
 
-# Use mamba if available, fall back to conda.
-# Check multiple locations since Make's shell doesn't source .bashrc,
-# so conda/mamba may not be on the default PATH.
-SOLVER := $(shell \
-	if command -v mamba >/dev/null 2>&1; then echo mamba; \
-	elif [ -x "$$(conda info --base 2>/dev/null)/bin/mamba" ]; then echo "$$(conda info --base)/bin/mamba"; \
-	elif [ -x "$$CONDA_PREFIX/bin/mamba" ]; then echo "$$CONDA_PREFIX/bin/mamba"; \
-	elif [ -x "$$MAMBA_ROOT_PREFIX/bin/mamba" ]; then echo "$$MAMBA_ROOT_PREFIX/bin/mamba"; \
-	elif [ -x "$$CONDA_EXE" ] && "$$(dirname $$CONDA_EXE)/mamba" --version >/dev/null 2>&1; then echo "$$(dirname $$CONDA_EXE)/mamba"; \
-	else echo conda; \
-	fi)
+# ---------- cross-platform solver detection (prefer mamba) ----------
+# Derive paths from CONDA_EXE — set by all conda distros (anaconda,
+# miniconda, miniforge, mambaforge) during `conda init`, regardless
+# of install location.
+_CONDA_EXE_FWD := $(subst \,/,$(CONDA_EXE))
+_CONDA_DIR     := $(if $(_CONDA_EXE_FWD),$(dir $(_CONDA_EXE_FWD)),)
+_CONDA_BASE    := $(if $(_CONDA_DIR),$(dir $(patsubst %/,%,$(_CONDA_DIR))),)
+
+ifeq ($(OS),Windows_NT)
+    # Windows: pure $(wildcard) — no shell dependency (works with cmd.exe).
+    _MAMBA_FOUND := $(or \
+        $(wildcard $(_CONDA_DIR)mamba.exe),\
+        $(wildcard $(_CONDA_BASE)Library/bin/mamba.exe))
+    ifneq ($(_MAMBA_FOUND),)
+        SOLVER := $(firstword $(_MAMBA_FOUND))
+    else
+        SOLVER := conda
+    endif
+    # Recipes use POSIX syntax; Git-for-Windows provides sh.exe.
+    SHELL := sh
+else
+    # Unix: check PATH, then relative to conda/mamba env vars.
+    SOLVER := $(or \
+        $(shell command -v mamba 2>/dev/null),\
+        $(wildcard $(_CONDA_BASE)bin/mamba),\
+        $(wildcard $(CONDA_PREFIX)/bin/mamba),\
+        $(wildcard $(MAMBA_ROOT_PREFIX)/bin/mamba),\
+        conda)
+endif
 
 .DEFAULT_GOAL := help
 
