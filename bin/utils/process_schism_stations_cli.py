@@ -1,15 +1,11 @@
 """
-Created on Fri Jan 23 15:01:50 2026
-
-@author: PWL
-"""
-
-"""
 This script gathers up raw SCHISM station output and processes it to
 OFS-standard NetCDF files that contain all variables needed for the skill
 assessment package, including water level, salinity, water temp, and current
 velocity.
 
+@author: PWL
+Created on Fri Jan 23 15:01:50 2026
 """
 
 import argparse
@@ -20,7 +16,6 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import netCDF4 as nc
 import numpy as np
 import pandas as pd
 from netCDF4 import Dataset, date2num
@@ -73,9 +68,9 @@ def make_dir_list(prop, logger):
     loofshr = ['00', '06', '12', '18']
     # Check hours to make they correspond to output directories
     if prop.start_date_full[-2:] not in loofshr:
-        prop.start_date_full[-2:] = '00'
+        prop.start_date_full = prop.start_date_full[:-2] + '00'
     if prop.end_date_full[-2:] not in loofshr:
-        prop.end_date_full[-2:] = '18'
+        prop.end_date_full = prop.end_date_full[:-2] + '18'
     # First get list of dates at x-hourly interval
     hr_interval = 6
     date_list = make_datetime_list(datetime.strptime(prop.start_date_full,
@@ -492,6 +487,9 @@ def process_schism_stations(prop, logger):
                 if prop.whichcast == 'hindcast':
                     cyc = t[-1].hour
                     date = datetime.strftime(t[-1],'%Y%m%d')
+                else:
+                    cyc = t[0].hour
+                    date = datetime.strftime(t[0], '%Y%m%d')
                 ### Filename & filepath
                 filename=f'{prop.ofs}.t{cyc:02}z.{date}.stations.{prop.whichcast}.nc'
                 filepath = Path(os.path.join(dir_list_ofs[i],filename)).as_posix()
@@ -512,7 +510,7 @@ def process_schism_stations(prop, logger):
                     time = ncfile.createVariable('time', np.float32, ('time'))
                     time.units = (f'seconds since {prop.start_date_full[0:4]}-'
                                   f'{prop.start_date_full[4:6]}-'
-                                  f'{prop.start_date_full[4:6]} '
+                                  f'{prop.start_date_full[6:8]} '
                                   f'{prop.start_date_full[-2:]}:00:00')
                     # Do rest of vars
                     lon = ncfile.createVariable('lon', np.float32, ('station'))

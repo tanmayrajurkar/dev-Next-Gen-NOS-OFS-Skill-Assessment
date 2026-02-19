@@ -548,7 +548,7 @@ def index_nearest_depth(
 
             elif model_source == 'schism':
                 if name_var == 'wl':
-                    index_min_depth.append('0')
+                    index_min_depth.append(0)
                 else:
                     # we assume layers are consistance at all the time steps,
                     # therefore, we use depth layes at time 0
