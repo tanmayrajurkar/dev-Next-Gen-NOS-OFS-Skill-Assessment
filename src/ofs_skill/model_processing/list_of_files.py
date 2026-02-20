@@ -247,7 +247,7 @@ def construct_expected_files(prop: Any, dir_path: str, logger: Logger) -> list[s
 
     # Get forecast cycles based on OFS
     if prop.ofs in ('cbofs', 'dbofs', 'gomofs', 'ciofs', 'leofs', 'lmhofs', 'loofs',
-                    'lsofs', 'tbofs', 'necofs'):
+                    'loofs2','lsofs', 'tbofs', 'necofs'):
         fcstcycles = ['00', '06', '12', '18']
     elif prop.ofs in ('creofs', 'ngofs2', 'sfbofs', 'sscofs'):
         fcstcycles = ['03', '09', '15', '21']
@@ -270,7 +270,7 @@ def construct_expected_files(prop: Any, dir_path: str, logger: Logger) -> list[s
 
     # Get hour strings based on OFS and whichcast
     if prop.ofs in ('cbofs', 'ciofs', 'creofs', 'dbofs', 'sfbofs', 'tbofs',
-                    'leofs', 'lmhofs', 'loofs', 'lsofs', 'sscofs'):
+                    'leofs', 'lmhofs', 'loofs', 'loofs2', 'lsofs', 'sscofs'):
         d_t = 1
     elif prop.ofs in ('stofs_3d_atl', 'stofs_3d_pac'):
         d_t = 12
@@ -423,6 +423,10 @@ def list_of_dir(prop: Any, logger: Logger) -> list[str]:
     except Exception:
         use_s3_fallback = False
 
+    # Deal with LOOFS2 -- switch off
+    if prop.ofs == 'loofs2' and prop.whichcast == 'hindcast':
+        use_s3_fallback = False
+
     dir_list = []
     if prop.whichcast != 'forecast_a':
         dates = dates_range(prop.startdate, prop.enddate, prop.ofs,
@@ -440,23 +444,22 @@ def list_of_dir(prop: Any, logger: Logger) -> list[str]:
     for date_index in range(0, dates_len):
         year = datetime.strptime(dates[date_index], '%m/%d/%y').year
         month = datetime.strptime(dates[date_index], '%m/%d/%y').month
+        day = datetime.strptime(dates[date_index], '%m/%d/%y').day
         # Add stofs directory structure
-        if prop.ofs == 'stofs_3d_atl' or prop.ofs == 'stofs_2d_global' or prop.ofs == 'stofs_3d_pac':
-            day = datetime.strptime(dates[date_index], '%m/%d/%y').day
-            model_dir = f'{prop.model_path}/{prop.ofs}.{year}{month:02}{day:02}'
+        if prop.ofs == 'stofs_3d_atl' or prop.ofs == 'stofs_2d_global' \
+            or prop.ofs == 'stofs_3d_pac':
+            model_dir = Path(f'{prop.model_path}/{prop.ofs}.{year}{month:02}{day:02}').as_posix()
         else:
             # Do old directory structure
             if datetime.strptime(dates[date_index], '%m/%d/%y') <= datethreshold:
-                model_dir = f'{prop.model_path}/{year}{month:02}'
+                model_dir = Path(f'{prop.model_path}/{year}{month:02}').as_posix()
             # Do new directory structure
             elif datetime.strptime(dates[date_index], '%m/%d/%y') > datethreshold:
-                day = datetime.strptime(dates[date_index], '%m/%d/%y').day
-                model_dir = f'{prop.model_path}/{year}/{month:02}/{day:02}'
+                model_dir = Path(f'{prop.model_path}/{year}/{month:02}/{day:02}').as_posix()
             # Whoops! I'm out
             else:
                 logger.error("Check the date -- can't find model output dir!")
                 raise SystemExit(-1)
-        model_dir = Path(model_dir).as_posix()
 
         # Switch to backup directory if files are not in primary directory
         if not os.path.exists(model_dir) or not os.listdir(model_dir):
@@ -557,6 +560,10 @@ def list_of_files(prop: Any, dir_list: list[str], logger: Logger) -> list[str]:
         conf_settings = utils.Utils().read_config_section('settings', logger)
         use_s3_fallback = conf_settings.get('use_s3_fallback', 'False').lower() in ('true', '1', 'yes')
     except Exception:
+        use_s3_fallback = False
+
+    # Deal with LOOFS2 -- switch off if hindcast
+    if prop.ofs == 'loofs2' and prop.whichcast == 'hindcast':
         use_s3_fallback = False
 
     try:
@@ -677,6 +684,48 @@ def list_of_files(prop: Any, dir_list: list[str], logger: Logger) -> list[str]:
                                     ):
                                     files.append(af_name)
                                     hr_cyc_day.append(checkstr1)
+
+                files = [dir_list[i_index] + '//' + i for i in files]
+
+                # Only sort if we have files
+                if len(files) > 0:
+                    tupfiles = tuple(zip(hr_cyc_day, files))
+                    # Sort by forecast/nowcast hour, then model run cycle, then day
+                    tupfiles = tuple(sorted(tupfiles, key=lambda x: (x[0][0:3])))
+                    tupfiles = tuple(sorted(tupfiles, key=lambda x: (x[0][-4:-2])))
+                    tupfiles = tuple(sorted(tupfiles, key=lambda x: (x[0][-2:])))
+                    # Unzip, get sorted file list back
+                    files = list(zip(*tupfiles))[1]
+                    files = list(files)
+                elif use_s3_fallback:
+                    # No files found after filtering, generate expected file names
+                    logger.info(f'Directory exists but no {prop.whichcast} files found. Constructing expected file names: {dir_list[i_index]}')
+                    files = construct_expected_files(prop, dir_list[i_index], logger)
+            elif prop.whichcast == 'hindcast':
+
+                all_files = listdir(dir_list[i_index])
+                files = []
+                hr_cyc_day = []
+                if prop.ofs == 'wcofs':
+                    ndays = 1
+                else:
+                    ndays = 0
+                for af_name in all_files:
+                    spltstr = af_name.split('.')
+                    if ('stations.h' in af_name and
+                          prop.ofsfiletype == 'stations'):
+                        checkstr = '999' + spltstr[-5][1:3] + spltstr[-4][-2:]
+                        if (checkstr not in hr_cyc_day
+                            and (datetime.strptime(spltstr[-4], '%Y%m%d') >=
+                                 datetime.strptime
+                                 (prop.startdate[:-2], '%Y%m%d'))
+                            and (datetime.strptime(spltstr[-4], '%Y%m%d') <=
+                                 datetime.strptime(prop.enddate[:-2], '%Y%m%d')
+                                 + timedelta(days=ndays))
+                            and checkstr[0:3] != '000'
+                            ):
+                            hr_cyc_day.append(checkstr)
+                            files.append(af_name)
 
                 files = [dir_list[i_index] + '//' + i for i in files]
 
@@ -912,7 +961,6 @@ def list_of_files(prop: Any, dir_list: list[str], logger: Logger) -> list[str]:
                                     files.append(af_name)
                                     hr_cyc_day.append(checkstr1)
                             elif prop.ofsfiletype == 'stations':
-
                                 # Split the string based on underscores and periods
                                 spltstr = af_name.split('_')
                                 # Extract the values
