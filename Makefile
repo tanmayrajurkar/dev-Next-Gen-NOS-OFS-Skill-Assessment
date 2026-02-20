@@ -76,9 +76,9 @@ setup: env install pre-commit
 info:
 	@echo "Solver:     $(SOLVER)"
 	@echo "Environment: $(ENV_NAME)"
-	@echo "CONDA_EXE:  $$CONDA_EXE"
-	@echo "CONDA_PREFIX: $$CONDA_PREFIX"
-	@echo "MAMBA_ROOT_PREFIX: $$MAMBA_ROOT_PREFIX"
+	@echo "CONDA_EXE:  $(CONDA_EXE)"
+	@echo "CONDA_PREFIX: $(CONDA_PREFIX)"
+	@echo "MAMBA_ROOT_PREFIX: $(MAMBA_ROOT_PREFIX)"
 
 ## Remove the conda environment
 clean:
