@@ -108,34 +108,60 @@ def oned_vector_plot1(
     """
     modetype = 'lines+markers'
     lineopacity = 1
-    linewidth = 1.5
-    marker_opacity = 0.5
+    marker_opacity = 1
     data_count = 48
-    min_size = 1
-    gap_length = 10
-    data_count = 48
+    min_size = 0
+    if prop.ofsfiletype == 'stations':
+        gap_length = 15
+    else:
+        gap_length = 5
+    marker_size = 6
+    marker_size_obs = 8
     # Combine obs from different casts into one main obs array
     obs_df, now_fores_paired = combine_obs_across_casts(now_fores_paired, prop)
+    valid_count = obs_df.OBS_SPD.count()
+    total_count = len(obs_df.OBS_SPD)
 
-    if len(list(obs_df.DateTime)) > data_count:
-        marker_size = (
-            6**(
-                data_count/len(list(obs_df.DateTime))
-            )
-        ) + (min_size-1)
-        marker_size_obs = (
-            9**(
-                data_count/len(list(obs_df.DateTime))
-            )
-        ) + (min_size-1)
-    else:
-        marker_size = 6
-        marker_size_obs = 9
-    # Check for long data gaps
+    # Check for long data gaps FIRST so `connectgaps` is used in sizing logic
     if find_max_data_gap(obs_df.OBS_SPD) > gap_length:
         connectgaps = False
     else:
         connectgaps = True
+
+    # base scale using only valid data (prevents too much shrinking)
+    marker_size = (
+        marker_size**(
+            data_count/len(list(obs_df.DateTime))
+        )
+    ) + (min_size-1)
+    if valid_count > data_count:
+        marker_size_obs = (
+            marker_size_obs**(
+                data_count/valid_count
+            )
+        ) + (min_size-1)
+
+    if valid_count > 0:
+        # scale up proportionally to the amount of missing data/gaps
+        gap_ratio = total_count/valid_count
+        if gap_ratio > 1.0:
+            marker_size_obs *= gap_ratio
+
+    # give an extra boost if there are huge gaps causing disconnected lines
+    if not connectgaps:
+        if valid_count < 240:
+            marker_size_obs *= 2
+        else:
+            marker_size_obs *= 10
+            marker_opacity = 0.5
+
+    # cap the maximum size so they don't get out of control on extremely sparse datasets
+    marker_size = min(marker_size, 8)
+    marker_size_obs = min(marker_size_obs, 8)
+    if marker_size_obs < 5:
+        line_width = 0
+    else:
+        line_width = 0.25
 
     # Current speed
     fig.add_trace(
@@ -146,14 +172,14 @@ def oned_vector_plot1(
             hovertemplate='%{y:.2f}',
             connectgaps=connectgaps,
             opacity=lineopacity,
-            line=dict(color=palette[0], width=linewidth, dash='dash'),
+            line=dict(color=palette[0], width=1.5, dash='dash'),
             mode=modetype, legendgroup='obs', marker=dict(
                 symbol=allmarkerstyles[0], size=marker_size_obs,
                 color=palette[0],
                 # angle=list(now_fores_paired[0].OBS_DIR),
                 opacity=marker_opacity,
                 # angleref='up',
-                line=dict(width=0, color='black'),
+                line=dict(width=line_width, color='black'),
             ),
         ), 1, 1,
     )
@@ -201,7 +227,7 @@ def oned_vector_plot1(
                 connectgaps=False,
                 line=dict(
                     color=palette[i+1],
-                    width=linewidth,
+                    width=1.5,
                 ), mode=modetype, opacity=lineopacity,
                 legendgroup=seriesname,
                 marker=dict(
@@ -241,14 +267,14 @@ def oned_vector_plot1(
             y=list(obs_df.OBS_DIR),
             name='Observations',
             hovertemplate='%{y:.2f}',
-            connectgaps=False,
+            connectgaps=connectgaps,
             opacity=lineopacity,
             showlegend=False,
-            line=dict(color=palette[0], width=linewidth, dash='dash'),
+            line=dict(color=palette[0], width=1.5, dash='dash'),
             mode='lines+markers', legendgroup='obs', marker=dict(
                 symbol=allmarkerstyles[0], size=marker_size, color=palette[0],
                 opacity=marker_opacity,
-                line=dict(width=0, color='black'),
+                line=dict(width=line_width, color='black'),
             ),
         ), 2, 1,
     )
@@ -296,7 +322,7 @@ def oned_vector_plot1(
                     # angle=list(now_fores_paired[i].OFS_DIR),
                     opacity=1,
                     # 0.6,
-                    line=dict(width=0, color='black'),
+                    line=dict(width=line_width, color='black'),
                 ), ), 2, 1,
         )
 
