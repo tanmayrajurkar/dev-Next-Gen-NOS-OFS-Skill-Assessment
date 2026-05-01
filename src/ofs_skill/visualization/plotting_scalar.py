@@ -98,7 +98,7 @@ def oned_scalar_plot(
     """
     modetype = 'lines+markers'
     lineopacity = 1
-    marker_opacity = 1
+    marker_opacity = 1.0
     data_count = 48
     min_size = 0
     if prop.ofsfiletype == 'stations':
@@ -152,7 +152,7 @@ def oned_scalar_plot(
     marker_size = min(marker_size, 8)
     marker_size_obs = min(marker_size_obs, 8)
     if marker_size_obs < 5:
-        line_width = 0
+        line_width = 0.0
     else:
         line_width = 0.25
 
