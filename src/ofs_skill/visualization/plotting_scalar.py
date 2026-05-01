@@ -120,11 +120,12 @@ def oned_scalar_plot(
         connectgaps = True
 
     # base scale using only valid data (prevents too much shrinking)
-    marker_size = (
-        marker_size**(
-            data_count/len(list(obs_df.DateTime))
-        )
-    ) + (min_size-1)
+    if total_count > 0:
+        marker_size = (
+            marker_size**(
+                data_count/total_count
+            )
+        ) + (min_size-1)
     if valid_count > data_count:
         marker_size_obs = (
             marker_size_obs**(
@@ -589,7 +590,7 @@ def oned_scalar_plot(
             has_fail = df.loc[df[df['Station ID'] == int(
                 station_id[0])].index]['Datum conversion pass/fail'] == 'fail'
             if has_fail.empty:
-                has_fail = True
+                has_fail = pd.Series([False])
         except ValueError:
             has_fail = df.loc[df[df['Station ID'] == str(
                 station_id[0])].index]['Datum conversion pass/fail'] == 'fail'

@@ -129,11 +129,12 @@ def oned_vector_plot1(
         connectgaps = True
 
     # base scale using only valid data (prevents too much shrinking)
-    marker_size = (
-        marker_size**(
-            data_count/len(list(obs_df.DateTime))
-        )
-    ) + (min_size-1)
+    if total_count > 0:
+        marker_size = (
+            marker_size**(
+                data_count/total_count
+            )
+        ) + (min_size-1)
     if valid_count > data_count:
         marker_size_obs = (
             marker_size_obs**(
